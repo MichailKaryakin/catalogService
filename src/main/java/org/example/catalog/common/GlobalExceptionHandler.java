@@ -1,6 +1,7 @@
 package org.example.catalog.common;
 
 import jakarta.servlet.http.HttpServletRequest;
+import lombok.extern.slf4j.Slf4j;
 import org.example.catalog.dto.ErrorResponse;
 import org.example.catalog.exception.CategoryNotFoundException;
 import org.example.catalog.exception.DuplicateCategoryNameException;
@@ -18,6 +19,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 @RestControllerAdvice
+@Slf4j
 public class GlobalExceptionHandler {
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
@@ -30,49 +32,37 @@ public class GlobalExceptionHandler {
                         f -> f.getDefaultMessage() != null ? f.getDefaultMessage() : "invalid",
                         (a, b) -> a
                 ));
-        return ErrorResponse.builder()
-                .timestamp(Instant.now())
-                .status(400)
-                .error("Bad Request")
-                .message("Validation failed")
-                .fieldErrors(fieldErrors)
-                .path(request.getRequestURI())
-                .build();
+        return build(HttpStatus.BAD_REQUEST, "Validation failed", request.getRequestURI(), fieldErrors);
     }
 
     @ExceptionHandler({ProductNotFoundException.class, CategoryNotFoundException.class})
     @ResponseStatus(HttpStatus.NOT_FOUND)
     public ErrorResponse handleNotFound(RuntimeException ex, HttpServletRequest request) {
-        return ErrorResponse.builder()
-                .timestamp(Instant.now())
-                .status(404)
-                .error("Not Found")
-                .message(ex.getMessage())
-                .path(request.getRequestURI())
-                .build();
+        return build(HttpStatus.NOT_FOUND, ex.getMessage(), request.getRequestURI(), null);
     }
 
     @ExceptionHandler({DuplicateSkuException.class, DuplicateCategoryNameException.class})
     @ResponseStatus(HttpStatus.CONFLICT)
     public ErrorResponse handleConflict(RuntimeException ex, HttpServletRequest request) {
-        return ErrorResponse.builder()
-                .timestamp(Instant.now())
-                .status(409)
-                .error("Conflict")
-                .message(ex.getMessage())
-                .path(request.getRequestURI())
-                .build();
+        return build(HttpStatus.CONFLICT, ex.getMessage(), request.getRequestURI(), null);
     }
 
     @ExceptionHandler(Exception.class)
     @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
-    public ErrorResponse handleGeneric(HttpServletRequest request) {
+    public ErrorResponse handleGeneric(Exception ex, HttpServletRequest request) {
+        log.error("Unhandled exception at {}: ", request.getRequestURI(), ex);
+        return build(HttpStatus.INTERNAL_SERVER_ERROR, "An unexpected error occurred", request.getRequestURI(), null);
+    }
+
+    private ErrorResponse build(HttpStatus status, String message, String path,
+                                Map<String, String> fieldErrors) {
         return ErrorResponse.builder()
                 .timestamp(Instant.now())
-                .status(500)
-                .error("Internal Server Error")
-                .message("An unexpected error occurred")
-                .path(request.getRequestURI())
+                .status(status.value())
+                .error(status.getReasonPhrase())
+                .message(message)
+                .fieldErrors(fieldErrors)
+                .path(path)
                 .build();
     }
 }

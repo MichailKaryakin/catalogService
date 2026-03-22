@@ -1,6 +1,7 @@
 package org.example.catalog.service;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.example.catalog.dto.*;
 import org.example.catalog.entity.Category;
 import org.example.catalog.entity.Product;
@@ -21,6 +22,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
@@ -30,25 +32,36 @@ public class ProductService {
     private final CategoryRepository categoryRepository;
 
     public Page<ProductResponse> findAll(ProductFilterRequest request, Pageable pageable) {
+        log.debug("Fetching products with filter: {}, page: {}", request, pageable);
         return productRepository.findAll(buildSpec(request), pageable)
                 .map(ProductResponse::fromEntity);
     }
 
     public ProductResponse findById(UUID id) {
+        log.debug("Fetching product by id: {}", id);
         return productRepository.findById(id)
                 .map(ProductResponse::fromEntity)
-                .orElseThrow(() -> new ProductNotFoundException(id));
+                .orElseThrow(() -> {
+                    log.warn("Product not found by id: {}", id);
+                    return new ProductNotFoundException(id);
+                });
     }
 
     public ProductResponse findBySku(String sku) {
+        log.debug("Fetching product by sku: {}", sku);
         return productRepository.findBySku(sku)
                 .map(ProductResponse::fromEntity)
-                .orElseThrow(() -> new ProductNotFoundException("sku", sku));
+                .orElseThrow(() -> {
+                    log.warn("Product not found by sku: {}", sku);
+                    return new ProductNotFoundException("sku", sku);
+                });
     }
 
     @Transactional
     public ProductResponse create(ProductRequest request) {
+        log.info("Creating product with sku: {}", request.sku());
         if (productRepository.existsBySku(request.sku())) {
+            log.warn("Duplicate sku on create: {}", request.sku());
             throw new DuplicateSkuException(request.sku());
         }
 
@@ -62,14 +75,18 @@ public class ProductService {
                 .category(resolveCategory(request.categoryId()))
                 .build();
 
-        return ProductResponse.fromEntity(productRepository.save(product));
+        ProductResponse response = ProductResponse.fromEntity(productRepository.save(product));
+        log.info("Product created: id={}, sku={}", response.id(), response.sku());
+        return response;
     }
 
     @Transactional
     public ProductResponse update(UUID id, ProductRequest request) {
+        log.info("Updating product id: {}", id);
         Product product = getProductOrThrow(id);
 
         if (!product.getSku().equals(request.sku()) && productRepository.existsBySku(request.sku())) {
+            log.warn("Duplicate sku on update: {}", request.sku());
             throw new DuplicateSkuException(request.sku());
         }
 
@@ -81,15 +98,18 @@ public class ProductService {
         product.setAvailable(request.available());
         product.setCategory(resolveCategory(request.categoryId()));
 
+        log.info("Product updated: id={}, sku={}", id, request.sku());
         return ProductResponse.fromEntity(product);
     }
 
     @Transactional
     public ProductResponse patch(UUID id, ProductPatchRequest request) {
+        log.info("Patching product id: {}", id);
         Product product = getProductOrThrow(id);
 
         if (request.sku() != null) {
             if (!product.getSku().equals(request.sku()) && productRepository.existsBySku(request.sku())) {
+                log.warn("Duplicate sku on patch: {}", request.sku());
                 throw new DuplicateSkuException(request.sku());
             }
             product.setSku(request.sku());
@@ -101,24 +121,33 @@ public class ProductService {
         if (request.available() != null) product.setAvailable(request.available());
         if (request.categoryId() != null) product.setCategory(resolveCategory(request.categoryId()));
 
+        log.info("Product patched: id={}", id);
         return ProductResponse.fromEntity(product);
     }
 
     @Transactional
     public void delete(UUID id) {
+        log.info("Deleting product id: {}", id);
         Product product = getProductOrThrow(id);
         productRepository.delete(product);
+        log.info("Product deleted: id={}", id);
     }
 
     private Product getProductOrThrow(UUID id) {
         return productRepository.findById(id)
-                .orElseThrow(() -> new ProductNotFoundException(id));
+                .orElseThrow(() -> {
+                    log.warn("Product not found: {}", id);
+                    return new ProductNotFoundException(id);
+                });
     }
 
     private Category resolveCategory(UUID categoryId) {
         if (categoryId == null) return null;
         return categoryRepository.findById(categoryId)
-                .orElseThrow(() -> new CategoryNotFoundException(categoryId));
+                .orElseThrow(() -> {
+                    log.warn("Category not found: {}", categoryId);
+                    return new CategoryNotFoundException(categoryId);
+                });
     }
 
     private Specification<Product> buildSpec(ProductFilterRequest request) {
