@@ -2,6 +2,7 @@ package org.example.catalog.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.example.catalog.cache.ProductCacheService;
 import org.example.catalog.dto.*;
 import org.example.catalog.entity.Category;
 import org.example.catalog.entity.Product;
@@ -21,6 +22,7 @@ import jakarta.persistence.criteria.Predicate;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Slf4j
@@ -32,21 +34,51 @@ public class ProductService {
     private final ProductRepository productRepository;
     private final CategoryRepository categoryRepository;
     private final ApplicationEventPublisher eventPublisher;
+    private final ProductCacheService cacheService;
 
     public Page<ProductResponse> findAll(ProductFilterRequest request, Pageable pageable) {
         log.debug("Fetching products with filter: {}, page: {}", request, pageable);
-        return productRepository.findAll(buildSpec(request), pageable)
+
+        String queryHash = Integer.toHexString(request.hashCode())
+                + ":" + pageable.getPageNumber()
+                + ":" + pageable.getPageSize()
+                + ":" + pageable.getSort();
+
+        Optional<String> cached = cacheService.getProductsList(queryHash);
+        if (cached.isPresent()) {
+            log.debug("Cache hit for products list, hash={}", queryHash);
+            try {
+                return cacheService.deserializePage(cached.get());
+            } catch (Exception e) {
+                log.warn("Failed to deserialize cached products list: {}", e.getMessage());
+            }
+        }
+
+        Page<ProductResponse> page = productRepository.findAll(buildSpec(request), pageable)
                 .map(ProductResponse::fromEntity);
+
+        cacheService.putProductsList(queryHash, page);
+        return page;
     }
 
     public ProductResponse findById(UUID id) {
         log.debug("Fetching product by id: {}", id);
-        return productRepository.findById(id)
+
+        Optional<ProductResponse> cached = cacheService.getProduct(id);
+        if (cached.isPresent()) {
+            log.debug("Cache hit for product id={}", id);
+            return cached.get();
+        }
+
+        ProductResponse response = productRepository.findById(id)
                 .map(ProductResponse::fromEntity)
                 .orElseThrow(() -> {
                     log.warn("Product not found by id: {}", id);
                     return new ProductNotFoundException(id);
                 });
+
+        cacheService.putProduct(response);
+        return response;
     }
 
     public ProductResponse findBySku(String sku) {
@@ -79,6 +111,9 @@ public class ProductService {
 
         ProductResponse response = ProductResponse.fromEntity(productRepository.save(product));
 
+        cacheService.putProduct(response);
+        cacheService.evictAllProductsLists();
+
         eventPublisher.publishEvent(
                 ProductEvent.created(response.id(), response.sku(), response.price(), response.available())
         );
@@ -105,12 +140,18 @@ public class ProductService {
         product.setAvailable(request.available());
         product.setCategory(resolveCategory(request.categoryId()));
 
+        ProductResponse response = ProductResponse.fromEntity(product);
+
+        cacheService.evictProduct(id);
+        cacheService.putProduct(response);
+        cacheService.evictAllProductsLists();
+
         eventPublisher.publishEvent(
                 ProductEvent.updated(id, request.sku(), request.price(), request.available())
         );
 
         log.info("Product updated: id={}, sku={}", id, request.sku());
-        return ProductResponse.fromEntity(product);
+        return response;
     }
 
     @Transactional
@@ -132,12 +173,18 @@ public class ProductService {
         if (request.available() != null) product.setAvailable(request.available());
         if (request.categoryId() != null) product.setCategory(resolveCategory(request.categoryId()));
 
+        ProductResponse response = ProductResponse.fromEntity(product);
+
+        cacheService.evictProduct(id);
+        cacheService.putProduct(response);
+        cacheService.evictAllProductsLists();
+
         eventPublisher.publishEvent(
                 ProductEvent.updated(id, product.getSku(), product.getPrice(), product.isAvailable())
         );
 
         log.info("Product patched: id={}", id);
-        return ProductResponse.fromEntity(product);
+        return response;
     }
 
     @Transactional
@@ -150,6 +197,10 @@ public class ProductService {
         );
 
         productRepository.delete(product);
+
+        cacheService.evictProduct(id);
+        cacheService.evictAllProductsLists();
+
         log.info("Product deleted: id={}", id);
     }
 
