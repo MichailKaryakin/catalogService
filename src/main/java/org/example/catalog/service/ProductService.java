@@ -10,6 +10,7 @@ import org.example.catalog.exception.CategoryNotFoundException;
 import org.example.catalog.exception.ProductNotFoundException;
 import org.example.catalog.repository.CategoryRepository;
 import org.example.catalog.repository.ProductRepository;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
@@ -30,6 +31,7 @@ public class ProductService {
 
     private final ProductRepository productRepository;
     private final CategoryRepository categoryRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     public Page<ProductResponse> findAll(ProductFilterRequest request, Pageable pageable) {
         log.debug("Fetching products with filter: {}, page: {}", request, pageable);
@@ -76,6 +78,11 @@ public class ProductService {
                 .build();
 
         ProductResponse response = ProductResponse.fromEntity(productRepository.save(product));
+
+        eventPublisher.publishEvent(
+                ProductEvent.created(response.id(), response.sku(), response.price(), response.available())
+        );
+
         log.info("Product created: id={}, sku={}", response.id(), response.sku());
         return response;
     }
@@ -97,6 +104,10 @@ public class ProductService {
         product.setCurrency(request.currency() != null ? request.currency() : "EUR");
         product.setAvailable(request.available());
         product.setCategory(resolveCategory(request.categoryId()));
+
+        eventPublisher.publishEvent(
+                ProductEvent.updated(id, request.sku(), request.price(), request.available())
+        );
 
         log.info("Product updated: id={}, sku={}", id, request.sku());
         return ProductResponse.fromEntity(product);
@@ -121,6 +132,10 @@ public class ProductService {
         if (request.available() != null) product.setAvailable(request.available());
         if (request.categoryId() != null) product.setCategory(resolveCategory(request.categoryId()));
 
+        eventPublisher.publishEvent(
+                ProductEvent.updated(id, product.getSku(), product.getPrice(), product.isAvailable())
+        );
+
         log.info("Product patched: id={}", id);
         return ProductResponse.fromEntity(product);
     }
@@ -129,6 +144,11 @@ public class ProductService {
     public void delete(UUID id) {
         log.info("Deleting product id: {}", id);
         Product product = getProductOrThrow(id);
+
+        eventPublisher.publishEvent(
+                ProductEvent.deleted(id, product.getSku(), product.getPrice(), product.isAvailable())
+        );
+
         productRepository.delete(product);
         log.info("Product deleted: id={}", id);
     }
