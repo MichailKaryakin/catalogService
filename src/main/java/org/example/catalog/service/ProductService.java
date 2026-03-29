@@ -9,6 +9,7 @@ import org.example.catalog.entity.Product;
 import org.example.catalog.exception.DuplicateSkuException;
 import org.example.catalog.exception.CategoryNotFoundException;
 import org.example.catalog.exception.ProductNotFoundException;
+import org.example.catalog.kafka.dto.ProductEvent;
 import org.example.catalog.repository.CategoryRepository;
 import org.example.catalog.repository.ProductRepository;
 import org.springframework.context.ApplicationEventPublisher;

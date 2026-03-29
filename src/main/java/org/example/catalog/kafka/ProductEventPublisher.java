@@ -2,7 +2,7 @@ package org.example.catalog.kafka;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.example.catalog.dto.ProductEvent;
+import org.example.catalog.kafka.dto.ProductEvent;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;

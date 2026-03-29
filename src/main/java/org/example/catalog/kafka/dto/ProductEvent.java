@@ -1,4 +1,4 @@
-package org.example.catalog.dto;
+package org.example.catalog.kafka.dto;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 
