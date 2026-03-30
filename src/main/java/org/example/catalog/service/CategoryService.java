@@ -23,7 +23,6 @@ public class CategoryService {
     private final CategoryRepository categoryRepository;
 
     public List<CategoryResponse> findAll() {
-        log.debug("Fetching all categories");
         return categoryRepository.findAll().stream()
                 .map(CategoryResponse::fromEntity)
                 .toList();

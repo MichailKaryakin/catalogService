@@ -83,7 +83,9 @@ public class ProductCacheService {
         return objectMapper.readValue(json,
                 objectMapper.getTypeFactory().constructParametricType(
                         org.springframework.data.domain.PageImpl.class,
-                        ProductResponse.class));
+                        ProductResponse.class
+                )
+        );
     }
 
     private void logCacheError(String operation, String key, Exception e) {

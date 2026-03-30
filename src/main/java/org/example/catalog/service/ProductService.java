@@ -38,8 +38,6 @@ public class ProductService {
     private final ProductCacheService cacheService;
 
     public Page<ProductResponse> findAll(ProductFilterRequest request, Pageable pageable) {
-        log.debug("Fetching products with filter: {}, page: {}", request, pageable);
-
         String queryHash = Integer.toHexString(request.hashCode())
                 + ":" + pageable.getPageNumber()
                 + ":" + pageable.getPageSize()
@@ -47,7 +45,6 @@ public class ProductService {
 
         Optional<String> cached = cacheService.getProductsList(queryHash);
         if (cached.isPresent()) {
-            log.debug("Cache hit for products list, hash={}", queryHash);
             try {
                 return cacheService.deserializePage(cached.get());
             } catch (Exception e) {
@@ -63,11 +60,8 @@ public class ProductService {
     }
 
     public ProductResponse findById(UUID id) {
-        log.debug("Fetching product by id: {}", id);
-
         Optional<ProductResponse> cached = cacheService.getProduct(id);
         if (cached.isPresent()) {
-            log.debug("Cache hit for product id={}", id);
             return cached.get();
         }
 
@@ -83,7 +77,6 @@ public class ProductService {
     }
 
     public ProductResponse findBySku(String sku) {
-        log.debug("Fetching product by sku: {}", sku);
         return productRepository.findBySku(sku)
                 .map(ProductResponse::fromEntity)
                 .orElseThrow(() -> {

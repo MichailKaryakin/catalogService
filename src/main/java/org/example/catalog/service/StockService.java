@@ -28,7 +28,6 @@ public class StockService {
     private final ProductCacheService cacheService;
 
     public StockResponse findByProductId(UUID productId) {
-        log.debug("Fetching stock for productId={}", productId);
         return stockRepository.findByProductId(productId)
                 .map(StockResponse::fromEntity)
                 .orElseThrow(() -> {
@@ -69,8 +68,7 @@ public class StockService {
 
         if (updated == 0) {
             log.warn("Not enough stock for productId={}, requested={}", request.productId(), request.quantity());
-            throw new StockOperationException(
-                    "Not enough stock for productId: " + request.productId());
+            throw new StockOperationException("Not enough stock for productId: " + request.productId());
         }
 
         StockResponse response = findByProductId(request.productId());
@@ -88,8 +86,7 @@ public class StockService {
 
         if (updated == 0) {
             log.warn("Failed to release stock for productId={}, requested={}", request.productId(), request.quantity());
-            throw new StockOperationException(
-                    "Failed to release stock for productId: " + request.productId());
+            throw new StockOperationException("Failed to release stock for productId: " + request.productId());
         }
 
         StockResponse response = findByProductId(request.productId());
