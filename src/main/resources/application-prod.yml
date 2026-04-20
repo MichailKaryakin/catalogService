@@ -1,0 +1,12 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://catalog-db:5432/catalog_db
+    username: postgres
+    password: BYC-eM5-Mzw-Mp8
+  kafka:
+    bootstrap-servers: kafka:9092
+  data:
+    redis:
+      host: redis
+      port: 6379
+      timeout: 2000ms

@@ -31,7 +31,7 @@ public class CategoryController {
         return categoryService.findAll();
     }
 
-    @Operation(summary = "Create category", description = "Creates a new category, optionally nested under a parent")
+    @Operation(summary = "Create category", description = "Admin only. Creates a new category, optionally nested under a parent")
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "Category created"),
             @ApiResponse(responseCode = "400", description = "Validation error"),
